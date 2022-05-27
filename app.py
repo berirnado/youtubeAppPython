@@ -1,4 +1,16 @@
 import PySimpleGUI as sg
+from pytube import YouTube
+
+def progress_check(stream,chunk , bytes_remaining):
+    progress_amount = 100 - round(bytes_remaining / stream.filesize * 100)
+    window['-PROGRESSBAR-'].update(progress_amount)
+
+def on_complete(stream, filepath):
+    window['-PROGRESSBAR-'].update(0)
+
+sg.theme('HotDogStand')
+
+start_layout = [[sg.Input('', key = '-INPUT-', expand_x = True), sg.Button('Enviar', key='-SUBMIT-')]]
 
 info_tab = [
     [sg.Text('Título:'), sg.Text('', key='-TITLE-')],
@@ -14,8 +26,9 @@ info_tab = [
 download_tab = [
     [sg.Frame('Melhor qualidade', [[sg.Button('Baixar', key = '-BEST-'), sg.Text('', key = '-BESTRES-'), sg.Text('', key = '-BESTSIZE-')]])],
     [sg.Frame('Pior qualidade', [[sg.Button('Baixar', key = '-WORST-'), sg.Text('', key = '-WORSTRES-'), sg.Text('', key = '-WORSTSIZE-')]])],
-    [sg.Frame('Audio', [[sg.Button('Baixar', key = '-AUDIO-'), sg.Text('', key = '-AUDIOSIZE-')]])],
-    [sg.VPush()]
+    [sg.Frame('MP3', [[sg.Button('Baixar', key = '-AUDIO-'), sg.Text('', key = '-AUDIOSIZE-')]])],
+    [sg.VPush()],
+    [sg.Progress(100, size=(20,20), expand_x = True, key = '-PROGRESSBAR-')]
 ]
 
 layout = [[
@@ -25,11 +38,40 @@ layout = [[
     ]])
 ]]
 
-window = sg.Window('Converter', layout)
+window = sg.Window('Baixar do Youtube', start_layout)
+
 
 while True:
-    event, values = window.read()
+    event, values = window.read(timeout = 100)
     if event == sg.WIN_CLOSED:
         break
+
+    if event == '-SUBMIT-':
+        video_object = YouTube(values['-INPUT-'], on_progress_callback = progress_check, on_complete_callback= on_complete)
+        window.close()
+
+        #informaçao do video
+        window = sg.Window('Baixar do Youtube', layout, finalize =True)
+        window['-TITLE-'].update(video_object.title)
+        window['-LENGTH-'].update(f'{round(video_object.length / 60, 2)} minutos')
+        window['-VIEWS-'].update(video_object.views)
+        window['-AUTHOR-'].update(video_object.author)
+        window['-DESCRIPTION-'].update(video_object.description)
+
+        #download
+        window['-BESTSIZE-'].update(f'{round(video_object.streams.get_highest_resolution().filesize / 1048576, 1)} Mb')
+        window['-BESTRES-'].update(video_object.streams.get_highest_resolution().resolution)
+
+        window['-WORSTSIZE-'].update(f'{round(video_object.streams.get_lowest_resolution().filesize / 1048576, 1)} Mb')
+        window['-WORSTRES-'].update(video_object.streams.get_lowest_resolution().resolution)
+
+        window['-AUDIOSIZE-'].update(f'{round(video_object.streams.get_audio_only().filesize / 1048576, 1)} Mb')
+    
+    if event == '-BEST-':
+        video_object.streams.get_highest_resolution().download()
+    if event == '-WORST-':
+        video_object.streams.get_lowest_resolution().download()
+    if event == '-AUDIO-':
+        video_object.streams.get_audio_only().download()
 
 window.close()
